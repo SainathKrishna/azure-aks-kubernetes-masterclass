@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "saiaks-5334"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "saiaks-5334"
+  template:
+    metadata:
+      labels:
+        app: "saiaks-5334"
+    spec:
+      containers:
+        - name: "saiaks-5334"
+          image: "saitest.azurecr.io/saiaks"
+          ports:
+          - containerPort: 80
