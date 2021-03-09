@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: saitest.azurecr.io
+        username: ${{ secrets.acr_saitest_username }}
+        password: ${{ secrets.acr_saitest_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/18-Azure-Container-Registry-ACR/18-01-ACR-attach-to-AKS/docker-manifests" -f  "18-Azure-Container-Registry-ACR/18-01-ACR-attach-to-AKS/docker-manifests/Dockerfile" -t saitest.azurecr.io/saiaks:${{ github.sha }} --label dockerfile-path=18-Azure-Container-Registry-ACR/18-01-ACR-attach-to-AKS/docker-manifests/Dockerfile
+        docker push saitest.azurecr.io/saiaks:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_saiaks_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep saiaks123 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace saiaks123`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: saiaks123
+        container-registry-url: saitest.azurecr.io
+        container-registry-username: ${{ secrets.acr_saitest_username }}
+        container-registry-password: ${{ secrets.acr_saitest_password }}
+        secret-name: saiaksdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: saiaks123
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          saitest.azurecr.io/saiaks:${{ github.sha }}
+        imagepullsecrets: |
+          saiaksdockerauth
